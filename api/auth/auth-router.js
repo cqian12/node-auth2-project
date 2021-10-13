@@ -18,15 +18,14 @@ router.post("/register", validateRoleName, (req, res, next) => {
     }
    */
 
-  let user = req.body
+  let { username, password } = req.body
+  const { role_name } = req
 
   const rounds = process.env.BCRYPT_ROUNDS || 8
-  const hash = bcrypt.hashSync(user.password, rounds)
+  const hash = bcrypt.hashSync(password, rounds)
 
-  user.password = hash
-
-  Users.add(user)
-  .then(savedUser => res.status(201).json(savedUser))
+  Users.add({username, password:hash, role_name })
+  .then(savedUser => res.status(201).json(savedUser)) //{user_id:savedUser.user_id, username:savedUser.username, role_name:savedUser.role_name}
   .catch(next)
 });
 
@@ -51,24 +50,19 @@ router.post("/login", checkUsernameExists, (req, res, next) => {
       "role_name": "admin" // the role of the authenticated user
     }
    */
-  let { username, password } = req.body
-  
-  Users.findById(ID)
-  .then(([user]) => {
-    if (user && bcrypt.compareSync(password, user.password)) {
-      const token = buildToken(user)
-      res.status(200).json({message:`${user.username} is back!`, token})
-    } else {
-      next({status:401, message:'invalid creds'})
-    }
-  }) 
+  if (bcrypt.compareSync(req.body.password, req.user.password)) {
+    const token = buildToken(req.user)
+    res.status(200).json({message:`${req.user.username} is back!`, token})
+  } else {
+    next({status:401, message:'Invalid credentials'})
+  }   
 });
 
 function buildToken (user) {
   const payload = {
-    subject: user.id,
+    subject: user.user_id,
     username: user.username,
-    role: user.role,
+    role_name: user.role_name,
   }
   const options = {
     expiresIn: '1d'
